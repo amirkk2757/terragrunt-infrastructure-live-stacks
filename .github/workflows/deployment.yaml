@@ -1,0 +1,338 @@
+
+##Copyright © Amazon.com and Affiliates: This deliverable is considered Developed Content as defined in the AWS Service Terms and the SOW between the parties dated [date].
+
+name: Infrastructure Deployment
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '**/payload.json'
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      relative_path: ${{ steps.get_path.outputs.relative_path }}
+      request_type: ${{ steps.read_payload.outputs.request_type }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Install Terraform
+      run: |
+        # Define Terraform version
+        TERRAFORM_VERSION="1.5.7"
+        
+        # Download Terraform
+        wget https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+        
+        # Unzip the downloaded file
+        unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+        
+        # Move terraform binary to a directory in PATH
+        sudo mv terraform /usr/local/bin/
+        
+        # Verify installation
+        terraform version
+        
+        # Clean up
+        rm terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+
+    - name: Set up Terragrunt
+      run: |
+        sudo wget https://github.com/gruntwork-io/terragrunt/releases/download/v0.31.0/terragrunt_linux_amd64 -O /usr/local/bin/terragrunt
+        sudo chmod +x /usr/local/bin/terragrunt
+
+    - name: Get changed files
+      id: changed-files
+      run: |
+        if [ "${{ github.event.pull_request.base.sha }}" ]; then
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep "payload.json$" || true)
+        else
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep "payload.json$" || true)
+        fi
+        echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Get relative path
+      id: get_path
+      run: |
+        FIRST_PAYLOAD=$(echo "${{ steps.changed-files.outputs.changed_files }}" | head -n 1)
+        if [ ! -z "$FIRST_PAYLOAD" ]; then
+          RELATIVE_PATH=$(dirname $FIRST_PAYLOAD)
+          echo "relative_path=$RELATIVE_PATH" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Read payload information
+      id: read_payload
+      run: |
+        CHANGED_FILES="${{ steps.changed-files.outputs.changed_files }}"
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "No payload.json files changed in this PR"
+          exit 1
+        fi
+
+        # Use the first changed payload.json
+        FIRST_PAYLOAD=$(echo "$CHANGED_FILES" | head -n 1)
+        echo "Processing payload file: $FIRST_PAYLOAD"
+        
+        REGION=$(jq -r '.RegionId // .region // .Region // ""' "$FIRST_PAYLOAD")
+        REQUEST_TYPE=$(jq -r '.RequestType // ""' "$FIRST_PAYLOAD")
+        RESOURCE_TYPE=$(jq -r '.ResourceType // ""' "$FIRST_PAYLOAD")
+        
+        if [ -z "$REGION" ]; then
+          echo "Region not found in payload.json"
+          exit 1
+        fi
+        
+        echo "Region: $REGION"
+        echo "Request Type: $REQUEST_TYPE"
+        echo "Resource Type: $RESOURCE_TYPE"
+        
+        echo "region=$REGION" >> $GITHUB_OUTPUT
+        echo "request_type=$REQUEST_TYPE" >> $GITHUB_OUTPUT
+        echo "resource_type=$RESOURCE_TYPE" >> $GITHUB_OUTPUT
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        role-to-assume: ${{ vars.aws_role }}
+        aws-region: ${{ steps.read_payload.outputs.region }}
+
+    - name: Deploy or Destroy with Terragrunt
+      run: |
+        ROOT_DIR=$GITHUB_WORKSPACE
+        CHANGED_FILES="${{ steps.changed-files.outputs.changed_files }}"
+        RESOURCE_TYPE="${{ steps.read_payload.outputs.resource_type }}"
+        
+        # Convert resource type to lowercase for directory matching
+        RESOURCE_TYPE_DIR=$(echo "$RESOURCE_TYPE" | tr '[:upper:]' '[:lower:]')
+        
+        # Check if resource type directory exists
+        if [ ! -d "$ROOT_DIR/$RESOURCE_TYPE_DIR" ]; then
+          echo "Error: Directory for resource type '$RESOURCE_TYPE' not found at $ROOT_DIR/$RESOURCE_TYPE_DIR"
+          echo "Available resource directories:"
+          ls -d $ROOT_DIR/*/ | grep -v "\.github\|images\|sample-payload"
+          exit 1
+        fi
+        
+        # Load existing changelog from the specific path or create new one
+        CHANGELOG_PATH="$ROOT_DIR/$relative_path/changelog.json"
+        if [ -f "$CHANGELOG_PATH" ]; then
+          echo "Loading existing changelog from $CHANGELOG_PATH"
+          cp "$CHANGELOG_PATH" $GITHUB_WORKSPACE/changelog.json
+        else
+          echo "Creating new changelog"
+          echo "[]" > $GITHUB_WORKSPACE/changelog.json
+        fi
+        
+        while IFS= read -r payload; do
+          if [ -z "$payload" ]; then
+            continue
+          fi
+          
+          echo "Processing payload file: $payload"
+          
+          # Store the full path to payload before changing directory
+          FULL_PAYLOAD_PATH="$ROOT_DIR/$payload"
+          echo "Full payload path: $FULL_PAYLOAD_PATH"
+          
+          relative_path=$(dirname $payload | sed "s|$ROOT_DIR/||")
+          echo "Relative path: $relative_path"
+          
+          export TF_VAR_payload=$(cat "$FULL_PAYLOAD_PATH")
+
+          echo "Current directory: $PWD"
+          echo "Payload directory: $ROOT_DIR/$relative_path"
+          echo "Resource type directory: $ROOT_DIR/$RESOURCE_TYPE_DIR"
+          
+          # Change to the resource type directory where terragrunt.hcl is located
+          cd "$ROOT_DIR/$RESOURCE_TYPE_DIR"
+          echo "Changed to directory: $(pwd)"
+          
+          if [ "${{ steps.read_payload.outputs.request_type }}" == "delete" ]; then
+            echo "Executing destroy operation..."
+            terragrunt run-all destroy \
+              --terragrunt-non-interactive
+            
+            # Create changelog entry for delete operation
+            REQUEST_ID=$(jq -r '.RequestId // "N/A"' "$FULL_PAYLOAD_PATH")
+            ACCOUNT_ID=$(jq -r '.AccountId // "N/A"' "$FULL_PAYLOAD_PATH")
+            APPLICATION_NAME=$(jq -r '.ApplicationName // "N/A"' "$FULL_PAYLOAD_PATH")
+            ENVIRONMENT_ID=$(jq -r '.EnvironmentId // "N/A"' "$FULL_PAYLOAD_PATH")
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            
+            # Create changelog entry for deletion
+            CHANGELOG_ENTRY=$(jq -n \
+              --arg timestamp "$TIMESTAMP" \
+              --arg request_id "$REQUEST_ID" \
+              --arg account_id "$ACCOUNT_ID" \
+              --arg application_name "$APPLICATION_NAME" \
+              --arg environment_id "$ENVIRONMENT_ID" \
+              --arg resource_type "$RESOURCE_TYPE" \
+              --arg request_type "${{ steps.read_payload.outputs.request_type }}" \
+              --arg region "${{ steps.read_payload.outputs.region }}" \
+              --arg status "deleted" \
+              '{
+                timestamp: $timestamp,
+                request_id: $request_id,
+                account_id: $account_id,
+                application_name: $application_name,
+                environment_id: $environment_id,
+                resource_type: $resource_type,
+                request_type: $request_type,
+                region: $region,
+                status: $status
+              }')
+            
+            # Append entry to changelog array
+            jq --argjson entry "$CHANGELOG_ENTRY" '. += [$entry]' $GITHUB_WORKSPACE/changelog.json > $GITHUB_WORKSPACE/changelog_temp.json
+            mv $GITHUB_WORKSPACE/changelog_temp.json $GITHUB_WORKSPACE/changelog.json
+            
+            # Remove output.json file if it exists (since resources are deleted)
+            if [ -f "$GITHUB_WORKSPACE/output.json" ]; then
+              rm "$GITHUB_WORKSPACE/output.json"
+              echo "Removed output.json file as resources were deleted"
+            fi
+          else
+            echo "Executing apply operation..."
+            terragrunt run-all apply \
+              --terragrunt-non-interactive
+            terragrunt run-all output -json > $GITHUB_WORKSPACE/output.json
+            
+            # Create changelog entry with deployment results and metadata
+            REQUEST_ID=$(jq -r '.RequestId // "N/A"' "$FULL_PAYLOAD_PATH")
+            ACCOUNT_ID=$(jq -r '.AccountId // "N/A"' "$FULL_PAYLOAD_PATH")
+            APPLICATION_NAME=$(jq -r '.ApplicationName // "N/A"' "$FULL_PAYLOAD_PATH")
+            ENVIRONMENT_ID=$(jq -r '.EnvironmentId // "N/A"' "$FULL_PAYLOAD_PATH")
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            
+            # Read the Terraform outputs
+            TERRAFORM_OUTPUTS=$(cat $GITHUB_WORKSPACE/output.json)
+            
+            # Create changelog entry with both metadata and actual outputs
+            CHANGELOG_ENTRY=$(jq -n \
+              --arg timestamp "$TIMESTAMP" \
+              --arg request_id "$REQUEST_ID" \
+              --arg account_id "$ACCOUNT_ID" \
+              --arg application_name "$APPLICATION_NAME" \
+              --arg environment_id "$ENVIRONMENT_ID" \
+              --arg resource_type "$RESOURCE_TYPE" \
+              --arg request_type "${{ steps.read_payload.outputs.request_type }}" \
+              --arg region "${{ steps.read_payload.outputs.region }}" \
+              --arg status "deployed" \
+              --argjson terraform_outputs "$TERRAFORM_OUTPUTS" \
+              '{
+                timestamp: $timestamp,
+                request_id: $request_id,
+                account_id: $account_id,
+                application_name: $application_name,
+                environment_id: $environment_id,
+                resource_type: $resource_type,
+                request_type: $request_type,
+                region: $region,
+                status: $status,
+                terraform_outputs: $terraform_outputs
+              }')
+            
+            # Append entry to changelog array
+            jq --argjson entry "$CHANGELOG_ENTRY" '. += [$entry]' $GITHUB_WORKSPACE/changelog.json > $GITHUB_WORKSPACE/changelog_temp.json
+            mv $GITHUB_WORKSPACE/changelog_temp.json $GITHUB_WORKSPACE/changelog.json
+          fi
+        done <<< "$CHANGED_FILES"
+
+    - name: Upload changelog artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-changelog
+        path: changelog.json
+
+    #Step to update changelog information, similar to 'Upload output artifact' for changelog file.
+    - name: Upload output artifact
+      if: steps.read_payload.outputs.request_type != 'delete'
+      uses: actions/upload-artifact@v4
+      with:
+        name: terragrunt-output
+        path: output.json
+
+    - name: Merge original PR
+      if: github.event_name == 'pull_request'
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+        git fetch origin main
+        git checkout main
+        git merge ${{ github.event.pull_request.head.sha }} --no-ff -m "Merge PR #${{ github.event.pull_request.number }}"
+        git push origin main
+
+  create_output_pr:
+    needs: deploy
+    if: needs.deploy.outputs.relative_path != ''
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout main
+      uses: actions/checkout@v2
+      with:
+        ref: main
+        fetch-depth: 0 
+
+    - name: Download output artifact
+      if: needs.deploy.outputs.request_type != 'delete'
+      uses: actions/download-artifact@v4
+      with:
+        name: terragrunt-output
+        path: ${{ needs.deploy.outputs.relative_path }}
+
+    - name: Download changelog artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: deployment-changelog
+        path: ${{ needs.deploy.outputs.relative_path }}
+
+    - name: Create and merge output PR
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+        
+        git checkout -b terragrunt-output
+        
+        # Always add the changelog file
+        git add ${{ needs.deploy.outputs.relative_path }}/changelog.json
+        
+        # Add output.json only if it's not a delete operation
+        if [ "${{ needs.deploy.outputs.request_type }}" != "delete" ]; then
+          git add ${{ needs.deploy.outputs.relative_path }}/output.json
+          COMMIT_MSG="Add Terragrunt output and changelog"
+          PR_TITLE="Add Terragrunt output and changelog"
+        else
+          # For delete operations, remove output.json if it exists
+          if [ -f "${{ needs.deploy.outputs.relative_path }}/output.json" ]; then
+            git rm ${{ needs.deploy.outputs.relative_path }}/output.json
+          fi
+          COMMIT_MSG="Update changelog for resource deletion"
+          PR_TITLE="Update changelog for resource deletion"
+        fi
+
+        git commit -m "$COMMIT_MSG"
+        git push origin terragrunt-output
+        
+        gh pr create \
+          --title "$PR_TITLE" \
+          --body "This PR updates the changelog from the recent deployment.\nPath: ${{ needs.deploy.outputs.relative_path }}\nOperation: ${{ needs.deploy.outputs.request_type }}" \
+          --base main \
+          --head terragrunt-output
+        
+        PR_NUMBER=$(gh pr list --base main --head terragrunt-output --json number --jq '.[0].number')
+        gh pr merge $PR_NUMBER --merge
+      env:
+        GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
