@@ -33,53 +33,29 @@ jobs:
           
           REQUEST_ID=$(echo "$REQUEST_PARAMS" | jq -r '.RequestId')
           REQUEST_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.RequestType')
-          RESOURCE_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.ResourceType')
+          SOLUTION_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.ResourceType')
           ACCOUNT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.AccountId')
-          ACCOUNT_ALIAS=$(echo "$REQUEST_PARAMS" | jq -r '.AccountAlias')
           REGION_ID=$(echo "$REQUEST_PARAMS" | jq -r '.RegionId')
-          APPLICATION_NAME=$(echo "$REQUEST_PARAMS" | jq -r '.ApplicationName')
-          DIVISION_NAME=$(echo "$REQUEST_PARAMS" | jq -r '.DivisionName')
+          TENANT_NAME=$(echo "$REQUEST_PARAMS" | jq -r '.ApplicationName')
           ENVIRONMENT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.EnvironmentId')
           SUFFIX=$(echo "$REQUEST_PARAMS" | jq -r '.Suffix')
           
-          # Convert resource type to lowercase for directory matching
-          RESOURCE_TYPE_DIR=$(echo "$RESOURCE_TYPE" | tr '[:upper:]' '[:lower:]')
+          BASE_PATH="${ENVIRONMENT_ID}/${REGION_ID}/${ACCOUNT_ID}"
           
           # Validate that the resource type has a corresponding directory
-          if [ ! -d "$RESOURCE_TYPE_DIR" ]; then
-            echo "Error: No directory found for resource type '$RESOURCE_TYPE'"
+          if [ ! -d "$BASE_PATH" ]; then
+            echo "Error: No directory found"
             exit 1
           fi
           
-          DIR_PATH="${RESOURCE_TYPE}/${ACCOUNT_ALIAS}/${REGION_ID}/${APPLICATION_NAME}_${DIVISION_NAME}_${RESOURCE_TYPE}_${SUFFIX}"
-          mkdir -p "$DIR_PATH"
+          TARGET_PATH="${BASE_PATH}/${TENANT_NAME}/${SOLUTION_TYPE}"
+          mkdir -p "$TARGET_PATH"
           
           # Create payload.json
-          jq -n \
-            --arg RequestId "$REQUEST_ID" \
-            --arg RequestType "$REQUEST_TYPE" \
-            --arg ResourceType "$RESOURCE_TYPE" \
-            --arg AccountId "$ACCOUNT_ID" \
-            --arg AccountAlias "$ACCOUNT_ALIAS" \
-            --arg RegionId "$REGION_ID" \
-            --arg ApplicationName "$APPLICATION_NAME" \
-            --arg DivisionName "$DIVISION_NAME" \
-            --arg EnvironmentId "$ENVIRONMENT_ID" \
-            --arg Suffix "$SUFFIX" \
-            --argjson Parameters "$RESOURCE_PARAMS" \
-            '{
-              RequestId: $RequestId,
-              RequestType: $RequestType,
-              ResourceType: $ResourceType,
-              AccountId: $AccountId,
-              AccountAlias: $AccountAlias,
-              RegionId: $RegionId,
-              ApplicationName: $ApplicationName,
-              DivisionName: $DivisionName,
-              EnvironmentId: $EnvironmentId,
-              Suffix: $Suffix,
-              Parameters: $Parameters
-            }' > "$DIR_PATH/payload.json"
+          cat <<EOF > $TARGET_PATH/terragrunt.stack.hcl
+          Line 1: Hello
+          Line 2: Written using cat
+          EOF
           
           echo "RESOURCE_NAME=${APPLICATION_NAME}_${DIVISION_NAME}_${RESOURCE_TYPE}_${SUFFIX}" >> $GITHUB_ENV
           echo "DIR_PATH=$DIR_PATH" >> $GITHUB_ENV
