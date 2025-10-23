@@ -46,9 +46,9 @@ remote_state {
   backend = "s3"
   config = {
     encrypt        = true
-    bucket         = "tf-state-287563783486"
+    bucket         = "sanbox-workload-tf-state-f17q"
     key            = "${path_relative_to_include()}/tf.tfstate"
-    region         = "us-west-2"
+    region         = "us-east-2"
     # dynamodb_table = "tf-locks"
   }
   generate = {
