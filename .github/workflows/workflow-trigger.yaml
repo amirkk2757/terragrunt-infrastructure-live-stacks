@@ -226,7 +226,7 @@ jobs:
 
           aws codepipeline start-pipeline-execution \
           --name "$PIPELINE_NAME" \
-          --region "us-east-1" \
+          --region "us-east-2" \
           --variables \
             name=Environment,value="$ENVIRONMENT_ID" \
             name=Region,value="$REGION_ID" \
