@@ -130,7 +130,7 @@ jobs:
               // to use when fetching the OpenTofu/Terraform module.
               version = "main"
 
-              name = "${local.name}-asg-sg"
+              name = local.name
             }
           }
 
