@@ -35,6 +35,19 @@ jobs:
           TENANT_NAME=$(echo "$REQUEST_PARAMS" | jq -r '.TenantName')
           ENVIRONMENT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.EnvironmentId')
           SUFFIX=$(echo "$REQUEST_PARAMS" | jq -r '.Suffix')
+
+          {
+            echo "REQUEST_ID=$REQUEST_ID"
+            echo "REQUEST_TYPE=$REQUEST_TYPE"
+            echo "SOLUTION_TYPE=$SOLUTION_TYPE"
+            echo "ACCOUNT_ID=$ACCOUNT_ID"
+            echo "REGION_ID=$REGION_ID"
+            echo "TENANT_NAME=$TENANT_NAME"
+            echo "ENVIRONMENT_ID=$ENVIRONMENT_ID"
+            echo "SUFFIX=$SUFFIX"
+            echo "BASE_PATH=$BASE_PATH"
+            echo "TARGET_PATH=$TARGET_PATH"
+          } >> $GITHUB_ENV
           
           BASE_PATH="${ENVIRONMENT_ID}/${REGION_ID}/${ACCOUNT_ID}"
           
