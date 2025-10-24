@@ -8,9 +8,6 @@ on:
       RequestParameters:
         description: 'Request Parameters JSON'
         required: true
-      ResourceParameters:
-        description: 'Resource Parameters JSON'
-        required: true
 
 jobs:
   create-file-and-pr:
@@ -29,7 +26,7 @@ jobs:
         run: |
           # Parse RequestParameters
           REQUEST_PARAMS="$REQUEST_PARAMETERS"
-          RESOURCE_PARAMS="$RESOURCE_PARAMETERS"
+          # RESOURCE_PARAMS="$RESOURCE_PARAMETERS"
           
           REQUEST_ID=$(echo "$REQUEST_PARAMS" | jq -r '.RequestId')
           REQUEST_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.RequestType')
