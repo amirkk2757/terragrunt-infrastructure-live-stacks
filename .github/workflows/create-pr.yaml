@@ -1,0 +1,64 @@
+name: create-stack-pr
+on:
+  workflow_dispatch:
+    inputs:
+      env:         { type: choice,  options: [non-prod, prod], required: true }
+      region:      { type: string,  required: true, default: "us-east-1" }
+      account_id:  { type: string,  required: true }
+      tenant:      { type: string,  required: true }
+      stack_type:  { type: choice,  options: [stateful-ec2-asg-service, api-gw-lambda-dynamo], required: true }
+
+jobs:
+  gen-pr:
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute paths
+        id: p
+        run: |
+          SAFE_TENANT="$(echo "${{ inputs.tenant }}" | tr -cd '[:alnum:]-_')"
+          DEST_DIR="${{ inputs.env }}/${{ inputs.region }}/${{ inputs.account_id }}/${SAFE_TENANT}/${{ inputs.stack }}"
+          echo "dest_dir=$DEST_DIR" >> $GITHUB_OUTPUT
+          echo "branch=stack/${{ inputs.env }}/${{ inputs.region }}/${{ inputs.account_id }}/${SAFE_TENANT}/${SAFE_STACK}" >> $GITHUB_OUTPUT
+
+      - name: Fail if path already exists
+        run: |
+          if [ -e "${{ steps.p.outputs.dest_dir }}/terragrunt.stack.hcl" ]; then
+            echo "Stack already exists at ${ { steps.p.outputs.dest_dir } }"; exit 1
+          fi
+
+      - name: Create files from template
+        run: |
+          mkdir -p "${{ steps.p.outputs.dest_dir }}"
+          # pick a template by stack_type
+          TEMPLATE="templates/${{ inputs.stack_type }}.hcl.tmpl"
+          if [ ! -f "$TEMPLATE" ]; then echo "Template not found: $TEMPLATE"; exit 1; fi
+
+          # render with envsubst (simple placeholders)
+          export TG_ACCOUNT_ID="${{ inputs.account_id }}"
+          export TG_REGION="${{ inputs.region }}"
+          export TG_ENV="${{ inputs.env }}"
+          export TG_TENANT="${{ inputs.tenant }}"
+          envsubst < "$TEMPLATE" > "${{ steps.p.outputs.dest_dir }}/terragrunt.stack.hcl"
+
+      - name: Create branch, commit, push
+        run: |
+          git checkout -b "${{ steps.p.outputs.branch }}"
+          git add "${{ steps.p.outputs.dest_dir }}/terragrunt.stack.hcl"
+          git commit -m "feat(stack): ${{ inputs.tenant }}/${{ inputs.stack_type }} in ${{ inputs.env }} ${{ inputs.region }} ${{ inputs.account_id }}"
+          git push --set-upstream origin "${{ steps.p.outputs.branch }}"
+
+      - name: Open PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --title "feat(stack): ${{ inputs.tenant }}/${{ inputs.stack_type }} in ${{ inputs.env }} ${{ inputs.region }} ${{ inputs.account_id }}" \
+            --body  "Automated stack creation.\n- env: \`${{ inputs.env }}\`\n- region: \`${{ inputs.region }}\`\n- account: \`${{ inputs.account_id }}\`\n- tenant: \`${{ inputs.tenant }}\`\n- type: \`${{ inputs.stack_type }}\`\n- module_ref: \`${{ inputs.module_ref }}\`" \
+            --base main \
+            --head "${{ steps.p.outputs.branch }}" \
+            --label stack:new --label tenant:${{ inputs.tenant }}
