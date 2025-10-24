@@ -44,6 +44,11 @@ jobs:
           export TG_TENANT="${{ inputs.tenant }}"
           envsubst < "$TEMPLATE" > "${{ steps.p.outputs.dest_dir }}/terragrunt.stack.hcl"
 
+      - name: Set up Git
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          
       - name: Create branch, commit, push
         run: |
           git checkout -b "terragrunt-automation-$(date +%Y%m%d-%H%M%S)"
