@@ -58,7 +58,7 @@ jobs:
 
       - name: Open PR
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           gh pr create \
             --title "feat(stack): ${{ inputs.tenant }}/${{ inputs.stack_type }} in ${{ inputs.env }} ${{ inputs.region }} ${{ inputs.account_id }}" \
