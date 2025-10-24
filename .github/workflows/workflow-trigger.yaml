@@ -225,20 +225,14 @@ jobs:
           echo "Solution: $SOLUTION_TYPE"
 
           aws codepipeline start-pipeline-execution \
-            --name "$PIPELINE_NAME" \
-            --region "us-east-2" \
-            --cli-input-json "$(cat <<EOF
-          {
-            "variables": [
-              {"name": "Environment", "value": "$ENVIRONMENT_ID"},
-              {"name": "Region", "value": "$REGION_ID"},
-              {"name": "Account", "value": "$ACCOUNT_ID"},
-              {"name": "Tenant", "value": "$TENANT_NAME"},
-              {"name": "Solution", "value": "$SOLUTION_TYPE"}
-            ]
-          }
-          EOF
-          )"
+          --name "$PIPELINE_NAME" \
+          --region "$REGION_ID" \
+          --variables \
+            name=Environment,value="$ENVIRONMENT_ID" \
+            name=Region,value="$REGION_ID" \
+            name=Account,value="$ACCOUNT_ID" \
+            name=Tenant,value="$TENANT_NAME" \
+            name=Solution,value="$SOLUTION_TYPE"
 
           echo "✅ AWS CodePipeline triggered successfully."          
 
