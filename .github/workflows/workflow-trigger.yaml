@@ -197,11 +197,7 @@ jobs:
               --title "Create terragrunt stack for ${{ env.TARGET_PATH }}" \
               --body "Automatically generated terragrunt stack file." \
               --base main \
-              --head ${{ env.BRANCH_NAME }} \
-              --json number,url \
-              --jq '.number')
-            
-            echo "PR_NUMBER=$PR_URL" >> $GITHUB_ENV
+              --head ${{ env.BRANCH_NAME }} )
           else
             echo "No changes to commit"
           fi
@@ -210,8 +206,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          gh pr merge $PR_NUMBER --merge --admin --delete-branch --yes
-          echo "✅ Pull request #$PR_NUMBER merged successfully."
+         PR_NUMBER=$(gh pr list --base main --head ${{ env.BRANCH_NAME }} --json number --jq '.[0].number')
+         gh pr merge $PR_NUMBER --merge
+         echo "✅ Pull request #$PR_NUMBER merged successfully."
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
