@@ -35,7 +35,7 @@ jobs:
         run: |
           mkdir -p "${{ steps.p.outputs.dest_dir }}"
           # pick a template by stack_type
-          TEMPLATE="templates/${{ inputs.stack_type }}.hcl.tmpl"
+          TEMPLATE="templates/${{ inputs.stack_type }}.stack.hcl.tmpl"
           if [ ! -f "$TEMPLATE" ]; then echo "Template not found: $TEMPLATE"; exit 1; fi
 
           # render with envsubst (simple placeholders)
