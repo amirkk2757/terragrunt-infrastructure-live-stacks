@@ -1,5 +1,5 @@
 locals {
-  name = "tenant1-asg"
+  name = "tenant1"
 
   # NOTE: This is only defined here to make this example simple.
   # Don't actually store credentials for your DB in plain text!
@@ -50,7 +50,7 @@ unit "db" {
     // to use when fetching the OpenTofu/Terraform module.
     version = "main"
 
-    name              = "${replace(local.name, "-", "")}db"
+    name              = local.name
     instance_class    = "db.t4g.micro"
     allocated_storage = 20
     storage_type      = "gp2"
@@ -79,7 +79,7 @@ unit "asg_sg" {
     // to use when fetching the OpenTofu/Terraform module.
     version = "main"
 
-    name = "${local.name}-asg-sg"
+    name = local.name
   }
 }
 
