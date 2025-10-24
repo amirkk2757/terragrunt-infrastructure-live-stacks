@@ -18,7 +18,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
       - name: Set up environment and create parameter files
         env:
             REQUEST_PARAMETERS: ${{ github.event.inputs.RequestParameters }}
@@ -30,10 +29,10 @@ jobs:
           
           REQUEST_ID=$(echo "$REQUEST_PARAMS" | jq -r '.RequestId')
           REQUEST_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.RequestType')
-          SOLUTION_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.ResourceType')
+          SOLUTION_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.SolutionType')
           ACCOUNT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.AccountId')
           REGION_ID=$(echo "$REQUEST_PARAMS" | jq -r '.RegionId')
-          TENANT_NAME=$(echo "$REQUEST_PARAMS" | jq -r '.ApplicationName')
+          TENANT_NAME=$(echo "$REQUEST_PARAMS" | jq -r '.TenantName')
           ENVIRONMENT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.EnvironmentId')
           SUFFIX=$(echo "$REQUEST_PARAMS" | jq -r '.Suffix')
           
@@ -51,7 +50,7 @@ jobs:
           # Create payload.json
           cat <<EOF > $TARGET_PATH/terragrunt.stack.hcl
           locals {
-            name = $TENANT_NAME
+            name = "$TENANT_NAME"
 
             # NOTE: This is only defined here to make this example simple.
             # Don't actually store credentials for your DB in plain text!
