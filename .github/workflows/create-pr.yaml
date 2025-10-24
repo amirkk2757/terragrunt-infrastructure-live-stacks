@@ -46,7 +46,7 @@ jobs:
 
       - name: Create branch, commit, push
         run: |
-          git checkout -b "${{ steps.p.outputs.branch }}"
+          git checkout -b "terragrunt-automation-$(date +%Y%m%d-%H%M%S)"
           git add "${{ steps.p.outputs.dest_dir }}/terragrunt.stack.hcl"
           git commit -m "feat(stack): ${{ inputs.tenant }}/${{ inputs.stack_type }} in ${{ inputs.env }} ${{ inputs.region }} ${{ inputs.account_id }}"
           git push --set-upstream origin "${{ steps.p.outputs.branch }}"
