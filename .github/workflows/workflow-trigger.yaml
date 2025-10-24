@@ -229,7 +229,6 @@ jobs:
             --region "us-east-2" \
             --cli-input-json "$(cat <<EOF
           {
-            "clientRequestToken": "trigger-${REQUEST_ID}",
             "variables": [
               {"name": "Environment", "value": "$ENVIRONMENT_ID"},
               {"name": "Region", "value": "$REGION_ID"},
