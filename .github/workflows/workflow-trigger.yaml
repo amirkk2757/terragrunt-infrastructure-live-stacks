@@ -179,8 +179,62 @@ jobs:
           if [ -n "$(git status --porcelain)" ]; then
             git commit -m "Create terragrunt stack file for ${{ env.TARGET_PATH }}"
             git push origin ${{ env.BRANCH_NAME }}
-            PR_URL=$(gh pr create --title "Create terragrunt stack file for ${{ env.TARGET_PATH }}" --body "This PR creates the payload.json file with the provided inputs in the specified directory structure." --base main --head ${{ env.BRANCH_NAME }})
-            echo "Pull request created: $PR_URL"
+            PR_URL=$(gh pr create \
+              --title "Create terragrunt stack for ${{ env.TARGET_PATH }}" \
+              --body "Automatically generated terragrunt stack file." \
+              --base main \
+              --head ${{ env.BRANCH_NAME }} \
+              --json number,url \
+              --jq '.number')
+            
+            echo "PR_NUMBER=$PR_URL" >> $GITHUB_ENV
           else
             echo "No changes to commit"
           fi
+      - name: Merge Pull Request
+        if: env.PR_NUMBER != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          gh pr merge $PR_NUMBER --merge --admin --delete-branch --yes
+          echo "✅ Pull request #$PR_NUMBER merged successfully."
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y awscli
+          aws --version
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE }}
+          aws-region: ${{ env.REGION_ID }}
+      - name: Trigger AWS CodePipeline
+        run: |
+          PIPELINE_NAME="sbx-infra-deployment-terragrunt"
+
+          echo "Triggering pipeline: $PIPELINE_NAME"
+          echo "Environment: $ENVIRONMENT_ID"
+          echo "Region: $REGION_ID"
+          echo "Account: $ACCOUNT_ID"
+          echo "Tenant: $TENANT_NAME"
+          echo "Solution: $SOLUTION_TYPE"
+
+          aws codepipeline start-pipeline-execution \
+            --name "$PIPELINE_NAME" \
+            --region "us-east-2" \
+            --cli-input-json "$(cat <<EOF
+          {
+            "clientRequestToken": "trigger-${REQUEST_ID}",
+            "variables": [
+              {"name": "Environment", "value": "$ENVIRONMENT_ID"},
+              {"name": "Region", "value": "$REGION_ID"},
+              {"name": "Account", "value": "$ACCOUNT_ID"},
+              {"name": "Tenant", "value": "$TENANT_NAME"},
+              {"name": "Solution", "value": "$SOLUTION_TYPE"}
+            ]
+          }
+          EOF
+          )"
+
+          echo "✅ AWS CodePipeline triggered successfully."          
+
