@@ -20,8 +20,7 @@ jobs:
       - name: Compute paths
         id: p
         run: |
-          SAFE_TENANT="$(echo "${{ inputs.tenant }}" | tr -cd '[:alnum:]-_')"
-          DEST_DIR="${{ inputs.env }}/${{ inputs.region }}/${{ inputs.account_id }}/${SAFE_TENANT}/${{ inputs.stack }}"
+          DEST_DIR="${{ inputs.env }}/${{ inputs.region }}/${{ inputs.account_id }}/{{ inputs.tenant }}/{{ inputs.stack_type }}"
           echo "dest_dir=$DEST_DIR" >> $GITHUB_OUTPUT
           echo "branch=stack/${{ inputs.env }}/${{ inputs.region }}/${{ inputs.account_id }}/${SAFE_TENANT}/${SAFE_STACK}" >> $GITHUB_OUTPUT
 
