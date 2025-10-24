@@ -198,12 +198,6 @@ jobs:
         run: |
           gh pr merge $PR_NUMBER --merge --admin --delete-branch --yes
           echo "✅ Pull request #$PR_NUMBER merged successfully."
-      - name: Install AWS CLI v2
-        run: |
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip -q awscliv2.zip
-          sudo ./aws/install
-          aws --version
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
