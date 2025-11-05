@@ -28,7 +28,7 @@ jobs:
           REQUEST_PARAMS="$REQUEST_PARAMETERS"
           # RESOURCE_PARAMS="$RESOURCE_PARAMETERS"
           
-          REQUEST_ID=$(echo "$REQUEST_PARAMS" | jq -r '.RequestId')
+          #REQUEST_ID=$(echo "$REQUEST_PARAMS" | jq -r '.RequestId')
           REQUEST_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.RequestType')
           SOLUTION_TYPE=$(echo "$REQUEST_PARAMS" | jq -r '.SolutionType')
           ACCOUNT_ID=$(echo "$REQUEST_PARAMS" | jq -r '.AccountId')
@@ -38,7 +38,7 @@ jobs:
           SUFFIX=$(echo "$REQUEST_PARAMS" | jq -r '.Suffix')
 
           {
-            echo "REQUEST_ID=$REQUEST_ID"
+            #echo "REQUEST_ID=$REQUEST_ID"
             echo "REQUEST_TYPE=$REQUEST_TYPE"
             echo "SOLUTION_TYPE=$SOLUTION_TYPE"
             echo "ACCOUNT_ID=$ACCOUNT_ID"
@@ -215,7 +215,7 @@ jobs:
           aws-region: ${{ env.REGION_ID }}
       - name: Trigger AWS CodePipeline
         run: |
-          PIPELINE_NAME="sbx-infra-deployment-terragrunt"
+          PIPELINE_NAME="app-infra-deployment"
 
           echo "Triggering pipeline: $PIPELINE_NAME"
           echo "Environment: $ENVIRONMENT_ID"
