@@ -61,7 +61,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           gh pr create \
-            --title "feat(stack): ${{ inputs.tenant }}/${{ inputs.stack_type }} in ${{ inputs.env }} ${{ inputs.region }} ${{ inputs.account_id }}" \
+            --title "${{ inputs.tenant }}/${{ inputs.stack_type }} in ${{ inputs.env }} ${{ inputs.region }} ${{ inputs.account_id }}" \
             --body  "Automated stack creation.\n- env: \`${{ inputs.env }}\`\n- region: \`${{ inputs.region }}\`\n- account: \`${{ inputs.account_id }}\`\n- tenant: \`${{ inputs.tenant }}\`\n- type: \`${{ inputs.stack_type }}\`\n- module_ref: \`${{ inputs.module_ref }}\`" \
             --base main \
             --head "${{ steps.p.outputs.branch }}"
